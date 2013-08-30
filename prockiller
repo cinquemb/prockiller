@@ -1,0 +1,50 @@
+#! /bin/sh
+#system variables
+PS=$(which ps)
+GREP=$(which grep)
+AWK=$(which awk)
+TR=$(which tr)
+
+# get process data (in this case, for php commands)
+SLOW_PHP_PROC_TEMP=($($PS aux | $GREP php | $AWK '{printf "%s %s %s\n", $2, $4, $12}'))
+
+SLOW_PHP_PROC_ARRAY=()
+TEMP=()
+FAIL_VAL=15 # percentage of memory you do not want speicif process to go over.
+for ((i=0; i<${#SLOW_PHP_PROC_TEMP[@]}; i++))
+do
+	if [ $(($i % 3)) == 0 -a $i != 0 ]
+	then
+		SLOW_PHP_PROC_ARRAY+=(${TEMP[@]})
+		# Return status code of a comparison
+		gt_test=($($AWK -v n1=$FAIL_VAL -v n2=${SLOW_PHP_PROC_ARRAY[1]} 'BEGIN{print (n2>n1)?1:0}'))
+		if [ $gt_test -eq 1 ]
+		then
+			#echo ${SLOW_PHP_PROC_ARRAY[1]}
+			#kill memory sucking php process
+			kill ${SLOW_PHP_PROC_ARRAY[0]}
+		fi	
+		unset TEMP
+		unset SLOW_PHP_PROC_ARRAY
+		TEMP+=(${SLOW_PHP_PROC_TEMP[$i]})
+	else
+		TEMP+=(${SLOW_PHP_PROC_TEMP[$i]})
+	fi
+	if [ $(($i)) -gt 3 ]
+	then
+		if [ $(($i+1)) == ${#SLOW_PHP_PROC_TEMP[@]} -a $i -gt 3 ]
+		then
+			SLOW_PHP_PROC_ARRAY+=(${TEMP[@]})
+			# Return status code of a comparison
+			gt_test=($($AWK -v n1=$FAIL_VAL -v n2=${SLOW_PHP_PROC_ARRAY[1]} 'BEGIN{print (n2>n1)?1:0}'))
+			if [ $gt_test -eq 1 ]
+			then
+				#echo ${SLOW_PHP_PROC_ARRAY[1]}
+				#kill memory sucking php process
+				kill ${SLOW_PHP_PROC_ARRAY[0]}
+			fi
+		fi
+	
+	fi   
+
+done
